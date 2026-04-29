@@ -1,0 +1,44 @@
+{
+  "name": "ankommen-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "next-auth": "5.0.0-beta.25",
+    "@auth/drizzle-adapter": "^1.7.4",
+    "drizzle-orm": "^0.36.4",
+    "@neondatabase/serverless": "^0.10.4",
+    "resend": "^4.0.1",
+    "lucide-react": "^0.460.0",
+    "zod": "^3.23.8",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "tailwindcss": "^3.4.16",
+    "postcss": "^8.4.49",
+    "autoprefixer": "^10.4.20",
+    "drizzle-kit": "^0.28.1",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "^15.1.6",
+    "vitest": "^2.1.8",
+    "vite-tsconfig-paths": "^5.1.4"
+  }
+}

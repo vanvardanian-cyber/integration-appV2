@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #FAF8F4;
+  --ink: #1A1A1A;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mobile-first: lock the viewport on phones */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Soft, warm gradient utility for the consumer app */
+.bg-warm-gradient {
+  background: linear-gradient(180deg, #FFF6EE 0%, #FFEFE0 60%, #FCE3CE 100%);
+}
