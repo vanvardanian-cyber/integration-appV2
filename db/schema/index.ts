@@ -8,6 +8,7 @@ import {
   primaryKey,
   pgEnum,
   uuid,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -172,7 +173,12 @@ export const completions = pgTable(
     xpEarned: integer("xp_earned").notNull().default(0),
   },
   (t) => ({
-    userProcedureUnique: primaryKey({ columns: [t.userId, t.procedureId] }),
+    // The (userId, procedureId) pair is a UNIQUE constraint, not a second
+    // primary key — Postgres only allows one PK per table. The original
+    // declaration as primaryKey() is what made db:push fail with
+    // transformIndexConstraint. This is the right shape for "user can
+    // only complete a given procedure once".
+    userProcedureUnique: unique("completions_user_proc_unique").on(t.userId, t.procedureId),
   })
 );
 

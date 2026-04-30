@@ -11,6 +11,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:push:force": "printf 'y\\n' | drizzle-kit push",
+    "db:init": "node scripts/init-db.mjs",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
