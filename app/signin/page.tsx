@@ -1,6 +1,25 @@
 import { signIn } from "@/lib/auth";
 
-export default function SignInPage() {
+/**
+ * Magic-link sign-in.
+ *
+ * If the visitor was bounced here by middleware trying to access a
+ * protected page, the URL contains ?callbackUrl=/foo. We pass that
+ * through to NextAuth via the FormData "redirectTo" field — that's
+ * what NextAuth v5 reads to know where to send users after the
+ * magic link succeeds.
+ *
+ * Default landing after sign-in is /home, which itself redirects to
+ * /onboarding if the user doesn't have a profile yet.
+ */
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const params = await searchParams;
+  const redirectTo = params.callbackUrl ?? "/home";
+
   return (
     <main className="min-h-screen bg-warm-gradient flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white rounded-3xl p-8 shadow-sm">
@@ -9,7 +28,7 @@ export default function SignInPage() {
         </div>
         <h1 className="font-serif text-2xl font-semibold mb-1">Welcome to Ankommen</h1>
         <p className="text-sm text-ink-500 mb-6">
-          Enter your email. We'll send you a magic link.
+          Enter your email. We&apos;ll send you a magic link.
         </p>
 
         <form
@@ -19,6 +38,7 @@ export default function SignInPage() {
           }}
           className="space-y-3"
         >
+          <input type="hidden" name="redirectTo" value={redirectTo} />
           <input
             type="email"
             name="email"

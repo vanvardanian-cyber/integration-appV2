@@ -11,7 +11,7 @@ export default function LandingPage() {
           </div>
           <span className="font-serif font-semibold text-lg">Ankommen</span>
         </div>
-        <Link href="/signin" className="text-sm font-medium hover:underline">
+        <Link href="/home" className="text-sm font-medium hover:underline">
           Sign in
         </Link>
       </nav>
@@ -31,7 +31,7 @@ export default function LandingPage() {
         </p>
 
         <Link
-          href="/signin"
+          href="/home"
           className="inline-flex items-center gap-2 mt-8 px-6 py-3.5 rounded-full bg-ink-900 text-cream-100 font-semibold text-sm hover:bg-ink-700 transition-colors"
         >
           Start your path — it's free <ArrowRight size={14} />

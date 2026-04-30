@@ -46,5 +46,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return session;
     },
+    // Where to land after sign-in. Honors a same-origin callback URL when
+    // present (set by middleware via ?callbackUrl=… or by the form's hidden
+    // redirectTo input), otherwise sends the user to /home — which itself
+    // redirects to /onboarding for first-time users.
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        if (new URL(url).origin === baseUrl) return url;
+      } catch {
+        /* not a URL — fall through */
+      }
+      // Default landing instead of `/` so the magic link never drops users
+      // back at the marketing landing page.
+      return `${baseUrl}/home`;
+    },
   },
 });
