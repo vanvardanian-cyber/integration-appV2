@@ -178,11 +178,114 @@ export async function getMyPath() {
     hasIndianDrivingLicense: extras.hasIndianDrivingLicense as boolean | undefined,
     hasUSDrivingLicense: extras.hasUSDrivingLicense as boolean | undefined,
     hasOtherNonEUDrivingLicense: extras.hasOtherNonEUDrivingLicense as boolean | undefined,
+    employerName: extras.employerName as string | undefined,
+    hrContactName: extras.hrContactName as string | undefined,
+    hrContactEmail: extras.hrContactEmail as string | undefined,
+    officeCity: extras.officeCity as string | undefined,
+    currentLanguageLevel: extras.currentLanguageLevel as UserProfile["currentLanguageLevel"],
+    goalLanguageLevel: extras.goalLanguageLevel as UserProfile["goalLanguageLevel"],
+    languageGoalDate: extras.languageGoalDate as string | undefined,
     confidence: (profileRow.confidence as UserProfile["confidence"]) ?? {},
   };
 
   const path = solve(profile, completedIds);
   return { profile, path, completedIds };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMPLOYER + LANGUAGE — both write to profiles.extras (no SQL migration)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const employerSchema = z.object({
+  employerName: z.string().trim().max(120).optional().or(z.literal("")),
+  hrContactName: z.string().trim().max(120).optional().or(z.literal("")),
+  hrContactEmail: z.string().trim().email().optional().or(z.literal("")),
+  officeCity: z.string().trim().max(80).optional().or(z.literal("")),
+});
+
+export type EmployerInput = z.infer<typeof employerSchema>;
+
+export async function saveEmployer(input: EmployerInput) {
+  const userId = await requireUserId();
+  const data = employerSchema.parse(input);
+
+  const existing = await db.query.profiles.findFirst({
+    where: eq(profiles.userId, userId),
+  });
+  if (!existing) return { success: false, error: "no_profile" };
+
+  // Merge into extras instead of clobbering — preserves driver-license flags
+  // and any other extras that lived there before.
+  const prevExtras = (existing.extras as Record<string, unknown>) ?? {};
+  const newExtras = {
+    ...prevExtras,
+    employerName: data.employerName || undefined,
+    hrContactName: data.hrContactName || undefined,
+    hrContactEmail: data.hrContactEmail || undefined,
+    officeCity: data.officeCity || undefined,
+  };
+
+  await db
+    .update(profiles)
+    .set({ extras: newExtras, updatedAt: new Date() })
+    .where(eq(profiles.userId, userId));
+
+  await db.insert(activity).values({
+    userId,
+    eventType: "employer_update",
+    metadata: { hasHr: !!data.hrContactEmail },
+  });
+
+  revalidatePath("/me");
+  revalidatePath("/me/employer");
+  revalidatePath("/home");
+  return { success: true };
+}
+
+const languageLevels = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"] as const;
+
+const languageGoalsSchema = z.object({
+  currentLanguageLevel: z.enum(languageLevels).optional(),
+  goalLanguageLevel: z.enum(languageLevels).optional(),
+  languageGoalDate: z.string().optional().or(z.literal("")),
+});
+
+export type LanguageGoalsInput = z.infer<typeof languageGoalsSchema>;
+
+export async function saveLanguageGoals(input: LanguageGoalsInput) {
+  const userId = await requireUserId();
+  const data = languageGoalsSchema.parse(input);
+
+  const existing = await db.query.profiles.findFirst({
+    where: eq(profiles.userId, userId),
+  });
+  if (!existing) return { success: false, error: "no_profile" };
+
+  const prevExtras = (existing.extras as Record<string, unknown>) ?? {};
+  const newExtras = {
+    ...prevExtras,
+    currentLanguageLevel: data.currentLanguageLevel,
+    goalLanguageLevel: data.goalLanguageLevel,
+    languageGoalDate: data.languageGoalDate || undefined,
+  };
+
+  await db
+    .update(profiles)
+    .set({ extras: newExtras, updatedAt: new Date() })
+    .where(eq(profiles.userId, userId));
+
+  await db.insert(activity).values({
+    userId,
+    eventType: "language_goals_update",
+    metadata: {
+      from: data.currentLanguageLevel,
+      to: data.goalLanguageLevel,
+    },
+  });
+
+  revalidatePath("/learn");
+  revalidatePath("/home");
+  return { success: true };
 }
 
 /**

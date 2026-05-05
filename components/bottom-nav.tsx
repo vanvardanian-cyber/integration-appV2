@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Target, User } from "lucide-react";
+import { Home, Target, BookOpen, User } from "lucide-react";
 
-type Tab = "home" | "path" | "me";
+type Tab = "home" | "path" | "learn" | "me";
 
 export function BottomNav({ active }: { active: Tab }) {
   const items: { k: Tab; href: string; icon: React.ReactNode; label: string }[] = [
     { k: "home", href: "/home", icon: <Home size={18} />, label: "Home" },
     { k: "path", href: "/path", icon: <Target size={18} />, label: "Path" },
+    { k: "learn", href: "/learn", icon: <BookOpen size={18} />, label: "Learn" },
     { k: "me", href: "/me", icon: <User size={18} />, label: "Me" },
   ];
 

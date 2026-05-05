@@ -38,6 +38,9 @@ export type HousingSituation =
   | "permanent-rental"
   | "owned";
 
+// CEFR language levels. A0 = no prior exposure; C2 = mastery.
+export type LanguageLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+
 export type VisaType =
   | "none"
   | "blue-card"
@@ -114,6 +117,20 @@ export interface UserProfile {
   // The engine flags the procedure either way; the user sorts the detail
   // with a Fahrschule.
   hasOtherNonEUDrivingLicense?: boolean;
+
+  // Employer block — unlocks HR-sync coordination. All optional; the
+  // /me/employer page collects these post-onboarding so first-time users
+  // aren't forced to know HR's email at signup.
+  employerName?: string;
+  hrContactName?: string;
+  hrContactEmail?: string;
+  officeCity?: string;
+
+  // Language-learning goals. Surfaced in /learn and used to compute
+  // urgency for the language_b1 procedure in /path.
+  currentLanguageLevel?: LanguageLevel;
+  goalLanguageLevel?: LanguageLevel;
+  languageGoalDate?: string; // ISO date
 
   // Per-field confidence map
   confidence: Record<string, Confidence>;

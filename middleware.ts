@@ -17,6 +17,7 @@ export default auth((req) => {
     path.startsWith("/home") ||
     path.startsWith("/path") ||
     path.startsWith("/me") ||
+    path.startsWith("/learn") ||
     path.startsWith("/onboarding");
 
   if (isProtected && !isLoggedIn) {

@@ -430,6 +430,45 @@ export const proceduresDE: Procedure[] = [
     verificationSource: "Claude general knowledge — REQUIRES expert review",
   },
   {
+    id: "language_b1",
+    country: "DE",
+    nameDe: "B1 Deutschkenntnisse",
+    nameEn: "B1 German proficiency",
+    description:
+      "B1 German is required for permanent residency (Niederlassungserlaubnis) after 5 years — 3 years with B2. Even short of that, conversational German makes Bürgeramt and Ausländerbehörde appointments dramatically easier.",
+    phase: "first-year",
+    appliesWhen: { type: "always" },
+    prerequisites: [],
+    produces: ["b1_certificate"],
+    deadline: { type: "none" },
+    processingTime: { minDays: 180, maxDays: 1825 },
+    locationDependent: false,
+    costEur: 200,
+    documentsRequired: ["telc / Goethe / ÖSD B1 certificate"],
+    officialUrl:
+      "https://www.bamf.de/EN/Themen/Integration/ZugewanderteTeilnehmende/Integrationskurse/integrationskurse-node.html",
+    escapePaths: [
+      {
+        id: "no_class_time",
+        whenBlocked: "Can't fit a class into your schedule",
+        resolution:
+          "Use Deutsche Welle's free Nicos Weg (A1→B1) plus a Tandem partner. Book the telc B1 exam at the end. Total cost ~€150 for the exam, free everything else.",
+      },
+      {
+        id: "subsidised_route",
+        whenBlocked: "Want the cheapest in-person option",
+        resolution:
+          "Apply to a BAMF Integrationskurs at €2.94/hour, with 50% refund on completion within 2 years. Eligible for most visa types including Blue Card.",
+      },
+    ],
+    xpReward: 300,
+    badgeId: "language_b1",
+    notes:
+      "Recommended exam: telc Deutsch B1 (slightly easier than Goethe B1, accepted by all German authorities for residency).",
+    lastVerified: "2026-04",
+    verificationSource: "Claude general knowledge — REQUIRES expert review",
+  },
+  {
     id: "annual_tax_return",
     country: "DE",
     nameDe: "Steuererklärung",

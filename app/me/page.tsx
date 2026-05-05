@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { Trophy, Settings, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Trophy, Settings, LogOut, Building2, BookOpen } from "lucide-react";
 import { getMyPath } from "@/lib/actions";
 import { signOut } from "@/lib/auth";
 import { BottomNav } from "@/components/bottom-nav";
@@ -48,6 +49,36 @@ export default async function MePage() {
         </div>
 
         <div className="mt-6 space-y-2">
+          <Link
+            href="/me/employer"
+            className="flex items-center justify-between bg-white rounded-2xl p-4 hover:bg-cream-100"
+          >
+            <div className="flex items-center gap-3">
+              <Building2 size={16} className="text-ink-400" />
+              <span className="text-sm font-medium text-ink-700">My employer</span>
+            </div>
+            {profile.hrContactEmail ? (
+              <span className="text-[10px] text-green-700 font-semibold">Connected</span>
+            ) : (
+              <span className="text-[10px] text-ink-300 font-medium">Not set up</span>
+            )}
+          </Link>
+          <Link
+            href="/learn"
+            className="flex items-center justify-between bg-white rounded-2xl p-4 hover:bg-cream-100"
+          >
+            <div className="flex items-center gap-3">
+              <BookOpen size={16} className="text-ink-400" />
+              <span className="text-sm font-medium text-ink-700">German learning</span>
+            </div>
+            {profile.currentLanguageLevel ? (
+              <span className="text-[10px] text-warm-orange font-semibold">
+                {profile.currentLanguageLevel} → {profile.goalLanguageLevel ?? "B1"}
+              </span>
+            ) : (
+              <span className="text-[10px] text-ink-300 font-medium">Set goals</span>
+            )}
+          </Link>
           <a
             href="/onboarding"
             className="flex items-center justify-between bg-white rounded-2xl p-4 hover:bg-cream-100"
