@@ -36,6 +36,11 @@ const profileSchema = z.object({
   hasIndianDrivingLicense: z.boolean().optional(),
   hasUSDrivingLicense: z.boolean().optional(),
   hasOtherNonEUDrivingLicense: z.boolean().optional(),
+  livedInGermanyBefore: z.boolean().optional(),
+  plannedStayLength: z.enum(["short", "medium", "long"]).optional(),
+  currentLanguageLevel: z.enum(["A0", "A1", "A2", "B1", "B2", "C1", "C2"]).optional(),
+  goalLanguageLevel: z.enum(["A0", "A1", "A2", "B1", "B2", "C1", "C2"]).optional(),
+  languageGoalDate: z.string().optional().or(z.literal("")),
   confidence: z.record(z.enum(["confirmed", "assumed", "unknown"])).default({}),
 });
 
@@ -68,12 +73,26 @@ export async function saveProfile(input: ProfileInput) {
     hasIndianDrivingLicense,
     hasUSDrivingLicense,
     hasOtherNonEUDrivingLicense,
+    livedInGermanyBefore,
+    plannedStayLength,
+    currentLanguageLevel,
+    goalLanguageLevel,
+    languageGoalDate,
     ...rest
   } = data;
+  // Merge new fields into extras alongside whatever's already there.
+  // Existing employer info (hrContactEmail etc) must survive.
+  const prevExtras = (existing?.extras as Record<string, unknown>) ?? {};
   const extras = {
+    ...prevExtras,
     ...(hasIndianDrivingLicense !== undefined && { hasIndianDrivingLicense }),
     ...(hasUSDrivingLicense !== undefined && { hasUSDrivingLicense }),
     ...(hasOtherNonEUDrivingLicense !== undefined && { hasOtherNonEUDrivingLicense }),
+    ...(livedInGermanyBefore !== undefined && { livedInGermanyBefore }),
+    ...(plannedStayLength !== undefined && { plannedStayLength }),
+    ...(currentLanguageLevel !== undefined && { currentLanguageLevel }),
+    ...(goalLanguageLevel !== undefined && { goalLanguageLevel }),
+    ...(languageGoalDate && { languageGoalDate }),
   };
 
   if (existing) {
@@ -185,6 +204,8 @@ export async function getMyPath() {
     currentLanguageLevel: extras.currentLanguageLevel as UserProfile["currentLanguageLevel"],
     goalLanguageLevel: extras.goalLanguageLevel as UserProfile["goalLanguageLevel"],
     languageGoalDate: extras.languageGoalDate as string | undefined,
+    livedInGermanyBefore: extras.livedInGermanyBefore as boolean | undefined,
+    plannedStayLength: extras.plannedStayLength as UserProfile["plannedStayLength"],
     confidence: (profileRow.confidence as UserProfile["confidence"]) ?? {},
   };
 

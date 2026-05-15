@@ -41,6 +41,16 @@ export type HousingSituation =
 // CEFR language levels. A0 = no prior exposure; C2 = mastery.
 export type LanguageLevel = "A0" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
+/**
+ * How long the user intends to stay. Drives residency-motivation copy
+ * and which long-tail procedures we surface in /path.
+ *
+ *   short — 1–2 years (assignment, exchange, gap year)
+ *   medium — 3–5 years (most Blue Card careers)
+ *   long — settling indefinitely (residency + naturalisation track)
+ */
+export type StayHorizon = "short" | "medium" | "long";
+
 export type VisaType =
   | "none"
   | "blue-card"
@@ -131,6 +141,15 @@ export interface UserProfile {
   currentLanguageLevel?: LanguageLevel;
   goalLanguageLevel?: LanguageLevel;
   languageGoalDate?: string; // ISO date
+
+  // Has the user lived in Germany before? Affects how much explanation
+  // the UI gives for basics like Anmeldung. Not used by the solver yet
+  // but cheap to capture upfront.
+  livedInGermanyBefore?: boolean;
+
+  // Intended stay duration. Lets us tune residency / naturalisation
+  // procedures to the user's actual ambition.
+  plannedStayLength?: StayHorizon;
 
   // Per-field confidence map
   confidence: Record<string, Confidence>;

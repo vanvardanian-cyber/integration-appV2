@@ -2,34 +2,55 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowLeft, Check } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  MapPin,
+  Globe,
+  Briefcase,
+  Euro,
+  Heart,
+  BookOpen,
+} from "lucide-react";
 import { saveProfile, type ProfileInput } from "@/lib/actions";
 
 /**
- * The onboarding survey is the bridge between a fresh user and a solvable profile.
+ * Onboarding survey — v2.
  *
- * Design principles:
- * - 6 screens max, one decision per screen
- * - Skippable fields where reasonable (we mark them "unknown" and the engine
- *   asks just-in-time later)
- * - Show the why for each question — newcomers don't trust forms
- * - Mobile-first: every screen fits a phone, big touch targets
+ * 7 screens, designed so that:
+ *   - Every question earns its place: each field is used either by the
+ *     engine (eligibility, deadlines, deadlocks) or by a downstream
+ *     feature (Learn, Employer).
+ *   - Driver's license and employer details are NOT asked here — those
+ *     are collected just-in-time in /path and /me/employer respectively.
+ *   - Step 4 (Job & money) is conditional on the reason-for-coming
+ *     selected in step 3, so non-employees don't see salary questions.
  */
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+const TOTAL_STEPS = 7;
 
-const TOTAL_STEPS = 6;
+type ReasonForComing =
+  | "employed-blue-card"
+  | "employed-other"
+  | "freelance"
+  | "student"
+  | "researcher"
+  | "family-reunion"
+  | "eu-citizen"
+  | "job-seeker";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>(0);
   const [isPending, startTransition] = useTransition();
 
-  // The profile being built
   const [profile, setProfile] = useState<Partial<ProfileInput>>({
     targetCountry: "DE",
     confidence: {},
   });
+  const [reason, setReason] = useState<ReasonForComing | undefined>();
 
   const update = <K extends keyof ProfileInput>(key: K, value: ProfileInput[K]) => {
     setProfile((p) => ({
@@ -39,12 +60,34 @@ export default function OnboardingPage() {
     }));
   };
 
+  // The reason-for-coming selector writes BOTH employment and visaType
+  // at once — that's the whole point of collapsing them into one
+  // question. Each branch maps to the engine-meaningful pair.
+  const setReasonAndDerivedFields = (r: ReasonForComing) => {
+    setReason(r);
+    const mapping: Record<
+      ReasonForComing,
+      { employment: ProfileInput["employment"]; visaType: ProfileInput["visaType"] }
+    > = {
+      "employed-blue-card": { employment: "employed", visaType: "blue-card" },
+      "employed-other": { employment: "employed", visaType: "work-permit" },
+      freelance: { employment: "freelance", visaType: "freelance-visa" },
+      student: { employment: "student", visaType: "student" },
+      researcher: { employment: "researcher", visaType: "researcher" },
+      "family-reunion": { employment: "employed", visaType: "family-reunion" },
+      "eu-citizen": { employment: "employed", visaType: "none" },
+      "job-seeker": { employment: "job-seeker", visaType: "job-seeker" },
+    };
+    const m = mapping[r];
+    update("employment", m.employment);
+    update("visaType", m.visaType);
+  };
+
   const next = () => setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1) as Step);
   const back = () => setStep((s) => Math.max(0, s - 1) as Step);
 
   const submit = () => {
     startTransition(async () => {
-      // Fill in safe defaults for fields the survey didn't cover
       const fullProfile: ProfileInput = {
         targetCountry: profile.targetCountry ?? "DE",
         nationality: profile.nationality ?? "non-EU",
@@ -64,9 +107,11 @@ export default function OnboardingPage() {
         speaksTargetLanguage: profile.speaksTargetLanguage ?? false,
         hasUniversityDegree: profile.hasUniversityDegree ?? false,
         degreeRecognized: profile.degreeRecognized ?? "unknown",
-        hasIndianDrivingLicense: profile.hasIndianDrivingLicense,
-        hasUSDrivingLicense: profile.hasUSDrivingLicense,
-        hasOtherNonEUDrivingLicense: profile.hasOtherNonEUDrivingLicense,
+        livedInGermanyBefore: profile.livedInGermanyBefore,
+        plannedStayLength: profile.plannedStayLength,
+        currentLanguageLevel: profile.currentLanguageLevel,
+        goalLanguageLevel: profile.goalLanguageLevel,
+        languageGoalDate: profile.languageGoalDate,
         confidence: profile.confidence ?? {},
       };
       await saveProfile(fullProfile);
@@ -76,9 +121,9 @@ export default function OnboardingPage() {
 
   return (
     <main className="min-h-screen bg-warm-gradient flex flex-col">
-      <div className="max-w-md w-full mx-auto px-6 pt-6 flex-1 flex flex-col">
-        {/* Progress bar */}
-        <div className="flex items-center gap-2 mb-8">
+      <div className="max-w-md w-full mx-auto px-6 pt-6 pb-10 flex-1 flex flex-col">
+        {/* Progress */}
+        <div className="flex items-center gap-2 mb-7">
           {step > 0 && (
             <button onClick={back} className="text-ink-500 hover:text-ink-900">
               <ArrowLeft size={18} />
@@ -95,15 +140,29 @@ export default function OnboardingPage() {
           </span>
         </div>
 
-        {/* Steps */}
+        {/* Step body */}
         <div className="flex-1 flex flex-col">
-          {step === 0 && <Step0 profile={profile} update={update} onNext={next} />}
-          {step === 1 && <Step1 profile={profile} update={update} onNext={next} />}
-          {step === 2 && <Step2 profile={profile} update={update} onNext={next} />}
-          {step === 3 && <Step3 profile={profile} update={update} onNext={next} />}
-          {step === 4 && <Step4 profile={profile} update={update} onNext={next} />}
-          {step === 5 && (
-            <Step5 profile={profile} onSubmit={submit} isPending={isPending} />
+          {step === 0 && <StepWhere profile={profile} update={update} onNext={next} />}
+          {step === 1 && (
+            <StepCitizenship profile={profile} update={update} onNext={next} />
+          )}
+          {step === 2 && (
+            <StepReason reason={reason} onPick={setReasonAndDerivedFields} onNext={next} />
+          )}
+          {step === 3 && (
+            <StepJobMoney
+              profile={profile}
+              update={update}
+              reason={reason}
+              onNext={next}
+            />
+          )}
+          {step === 4 && (
+            <StepFamilyHousing profile={profile} update={update} onNext={next} />
+          )}
+          {step === 5 && <StepGoals profile={profile} update={update} onNext={next} />}
+          {step === 6 && (
+            <StepReview profile={profile} reason={reason} onSubmit={submit} isPending={isPending} />
           )}
         </div>
       </div>
@@ -112,7 +171,7 @@ export default function OnboardingPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP COMPONENTS
+// SHARED PRIMITIVES
 // ─────────────────────────────────────────────────────────────────────────────
 
 type StepProps = {
@@ -121,18 +180,29 @@ type StepProps = {
   onNext: () => void;
 };
 
-function StepHeader({ title, sub }: { title: string; sub: string }) {
+function StepHeader({
+  icon,
+  title,
+  sub,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  sub: string;
+}) {
   return (
     <>
-      <h1 className="font-serif text-3xl font-semibold tracking-tight mb-2 text-ink-700">
+      <div className="w-10 h-10 rounded-xl bg-warm-peach text-warm-orange flex items-center justify-center mb-3">
+        {icon}
+      </div>
+      <h1 className="font-serif text-2xl font-semibold tracking-tight mb-1.5 text-ink-700">
         {title}
       </h1>
-      <p className="text-sm text-ink-400 mb-6 leading-relaxed">{sub}</p>
+      <p className="text-sm text-ink-400 mb-5 leading-relaxed">{sub}</p>
     </>
   );
 }
 
-function ChoiceButton({
+function Choice({
   selected,
   onClick,
   label,
@@ -146,160 +216,69 @@ function ChoiceButton({
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+      type="button"
+      className={`w-full text-left p-3.5 rounded-2xl border-2 transition-all ${
         selected
           ? "border-warm-orange bg-warm-peach"
           : "border-transparent bg-white hover:border-cream-300"
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className="font-semibold text-ink-700">{label}</span>
-        {selected && <Check size={18} className="text-warm-orange" />}
+        <span className="font-semibold text-ink-700 text-sm">{label}</span>
+        {selected && <Check size={16} className="text-warm-orange" />}
       </div>
-      {hint && <div className="text-xs text-ink-400 mt-1">{hint}</div>}
+      {hint && <div className="text-[11px] text-ink-400 mt-0.5 leading-relaxed">{hint}</div>}
     </button>
   );
 }
 
-function NextButton({ disabled, onClick, label = "Continue" }: { disabled?: boolean; onClick: () => void; label?: string }) {
+function NextButton({
+  disabled,
+  onClick,
+  label = "Continue",
+}: {
+  disabled?: boolean;
+  onClick: () => void;
+  label?: string;
+}) {
   return (
     <button
       onClick={onClick}
+      type="button"
       disabled={disabled}
-      className="w-full mt-6 py-4 rounded-2xl bg-ink-900 text-cream-100 font-semibold flex items-center justify-center gap-2 disabled:opacity-40 hover:bg-ink-700 transition-colors"
+      className="w-full mt-6 py-3.5 rounded-2xl bg-ink-900 text-cream-100 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 hover:bg-ink-700 transition-colors"
     >
-      {label} <ArrowRight size={16} />
+      {label} <ArrowRight size={14} />
     </button>
   );
 }
 
-// Step 0: Where are you going?
-function Step0({ profile, update, onNext }: StepProps) {
+function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <StepHeader
-        title="Where are you headed?"
-        sub="We'll personalize everything based on the country. Right now we know Germany inside-out."
-      />
-      <div className="space-y-2">
-        <ChoiceButton
-          selected={profile.targetCountry === "DE"}
-          onClick={() => update("targetCountry", "DE")}
-          label="🇩🇪 Germany"
-          hint="Available now"
-        />
-        <ChoiceButton selected={false} onClick={() => {}} label="🇳🇱 Netherlands · Coming soon" />
-        <ChoiceButton selected={false} onClick={() => {}} label="🇦🇹 Austria · Coming soon" />
-        <ChoiceButton selected={false} onClick={() => {}} label="🇨🇭 Switzerland · Coming soon" />
-      </div>
-      <NextButton disabled={!profile.targetCountry} onClick={onNext} />
-    </>
+    <div className="text-[10px] uppercase tracking-widest text-ink-300 font-semibold mb-1.5 mt-3">
+      {children}
+    </div>
   );
 }
 
-// Step 1: Citizenship
-function Step1({ profile, update, onNext }: StepProps) {
-  return (
-    <>
-      <StepHeader
-        title="What's your citizenship?"
-        sub="EU citizens skip about half the bureaucracy. Non-EU folks get the full treatment."
-      />
-      <div className="space-y-2">
-        <ChoiceButton
-          selected={profile.nationality === "EU"}
-          onClick={() => {
-            update("nationality", "EU");
-            update("visaType", "none");
-          }}
-          label="EU / EEA / Swiss citizen"
-          hint="Visa-free movement, much simpler path"
-        />
-        <ChoiceButton
-          selected={profile.nationality === "non-EU"}
-          onClick={() => update("nationality", "non-EU")}
-          label="Non-EU citizen"
-          hint="The full bureaucratic adventure. We've got you."
-        />
-        <ChoiceButton
-          selected={profile.nationality === "UK"}
-          onClick={() => update("nationality", "UK")}
-          label="UK citizen"
-          hint="Post-Brexit: similar to non-EU but with quirks"
-        />
-      </div>
-      <NextButton disabled={!profile.nationality} onClick={onNext} />
-    </>
-  );
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 1 — Where + when
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Step 2: Employment + visa
-function Step2({ profile, update, onNext }: StepProps) {
-  const isEU = profile.nationality === "EU";
+function StepWhere({ profile, update, onNext }: StepProps) {
   return (
     <>
       <StepHeader
-        title="What kind of work?"
-        sub={isEU ? "EU citizens don't need a visa, but employment type still matters for taxes and insurance." : "Different visas, different paths. Pick what applies."}
+        icon={<MapPin size={20} />}
+        title="Where and when?"
+        sub="Germany only for now. NL, AT and CH ship later — same engine."
       />
-      <div className="space-y-2">
-        <ChoiceButton
-          selected={profile.visaType === "blue-card"}
-          onClick={() => {
-            update("visaType", "blue-card");
-            update("employment", "employed");
-          }}
-          label="Employed · EU Blue Card"
-          hint="Salary-qualified employment, the most common path for skilled hires"
-        />
-        <ChoiceButton
-          selected={profile.visaType === "work-permit"}
-          onClick={() => {
-            update("visaType", "work-permit");
-            update("employment", "employed");
-          }}
-          label="Employed · Standard work permit"
-          hint="Below Blue Card threshold, or shortage occupation"
-        />
-        <ChoiceButton
-          selected={profile.employment === "freelance"}
-          onClick={() => {
-            update("visaType", "freelance-visa");
-            update("employment", "freelance");
-          }}
-          label="Freelance / self-employed"
-          hint="Different tax + insurance rules"
-        />
-        <ChoiceButton
-          selected={profile.visaType === "none" && profile.nationality === "EU"}
-          onClick={() => {
-            update("visaType", "none");
-            update("employment", "employed");
-          }}
-          label="EU citizen, employed"
-          hint="No visa needed"
-        />
-      </div>
-      <NextButton disabled={!profile.visaType} onClick={onNext} />
-    </>
-  );
-}
 
-// Step 3: City + arrival
-function Step3({ profile, update, onNext }: StepProps) {
-  return (
-    <>
-      <StepHeader
-        title="When and where?"
-        sub="If you don't know yet, leave blank. We'll ask later."
-      />
-      <label className="text-xs uppercase tracking-widest text-ink-300 font-semibold mb-2 block">
-        German city
-      </label>
+      <FieldLabel>City</FieldLabel>
       <select
         value={profile.city ?? ""}
-        onChange={(e) => update("city", e.target.value || null)}
-        className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm focus:outline-none focus:border-ink-900 mb-4"
+        onChange={(e) => update("city", (e.target.value || null) as ProfileInput["city"])}
+        className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm"
       >
         <option value="">Not sure yet</option>
         <option value="Berlin">Berlin</option>
@@ -313,95 +292,306 @@ function Step3({ profile, update, onNext }: StepProps) {
         <option value="other-DE">Other</option>
       </select>
 
-      <label className="text-xs uppercase tracking-widest text-ink-300 font-semibold mb-2 block">
-        Expected arrival date
-      </label>
+      <FieldLabel>Arrival date (or expected)</FieldLabel>
       <input
         type="date"
         value={profile.arrivalDate ?? ""}
         onChange={(e) => update("arrivalDate", e.target.value || null)}
-        className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm focus:outline-none focus:border-ink-900 mb-4"
+        className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm"
       />
-
-      <label className="text-xs uppercase tracking-widest text-ink-300 font-semibold mb-2 block">
-        Where will you stay first? (this matters more than you'd think)
-      </label>
-      <div className="space-y-2">
-        <ChoiceButton
-          selected={profile.housing === "temporary-employer"}
-          onClick={() => update("housing", "temporary-employer")}
-          label="Employer-provided temp flat"
-          hint="They'll sign your Wohnungsgeberbestätigung — best case"
-        />
-        <ChoiceButton
-          selected={profile.housing === "temporary-airbnb"}
-          onClick={() => update("housing", "temporary-airbnb")}
-          label="Hotel / Airbnb"
-          hint="Most won't sign Wohnungsgeberbestätigung — we'll need a workaround"
-        />
-        <ChoiceButton
-          selected={profile.housing === "temporary-friend"}
-          onClick={() => update("housing", "temporary-friend")}
-          label="Friend's place"
-          hint="Friend can sign Wohnungsgeberbestätigung if willing"
-        />
-        <ChoiceButton
-          selected={profile.housing === "permanent-rental"}
-          onClick={() => update("housing", "permanent-rental")}
-          label="Already have a permanent rental"
-          hint="Lucky you — major deadlocks avoided"
-        />
-      </div>
+      <p className="text-[11px] text-ink-300 mt-1.5 leading-relaxed">
+        Leave blank if you're still planning. We'll show you the pre-arrival path either way.
+      </p>
 
       <NextButton onClick={onNext} />
     </>
   );
 }
 
-// Step 4: Salary + family
-function Step4({ profile, update, onNext }: StepProps) {
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 2 — Citizenship + origin
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepCitizenship({ profile, update, onNext }: StepProps) {
   return (
     <>
       <StepHeader
-        title="A few last details"
-        sub="These affect your tax class and which decisions need extra thought."
+        icon={<Globe size={20} />}
+        title="Where are you coming from?"
+        sub="Some procedures depend on your passport. EU citizens skip about half the bureaucracy."
       />
 
-      <label className="text-xs uppercase tracking-widest text-ink-300 font-semibold mb-2 block">
-        Annual gross salary (EUR)
-      </label>
-      <input
-        type="range"
-        min={20000}
-        max={200000}
-        step={1000}
-        value={profile.annualGrossSalary ?? 60000}
-        onChange={(e) => update("annualGrossSalary", parseInt(e.target.value))}
-        className="w-full mb-1"
-      />
-      <div className="flex justify-between text-xs text-ink-400 mb-4">
-        <span>€20k</span>
-        <span className="font-semibold text-ink-700">
-          €{(profile.annualGrossSalary ?? 60000).toLocaleString()}
-        </span>
-        <span>€200k</span>
+      <FieldLabel>Citizenship</FieldLabel>
+      <div className="space-y-1.5">
+        <Choice
+          selected={profile.nationality === "EU"}
+          onClick={() => update("nationality", "EU")}
+          label="EU / EEA / Swiss"
+          hint="Visa-free movement"
+        />
+        <Choice
+          selected={profile.nationality === "non-EU"}
+          onClick={() => update("nationality", "non-EU")}
+          label="Non-EU"
+          hint="The full bureaucratic adventure — we've got you"
+        />
+        <Choice
+          selected={profile.nationality === "UK"}
+          onClick={() => update("nationality", "UK")}
+          label="UK"
+          hint="Post-Brexit: similar to non-EU but with quirks"
+        />
+        <Choice
+          selected={profile.nationality === "Turkey"}
+          onClick={() => update("nationality", "Turkey")}
+          label="Turkey"
+          hint="Special bilateral agreements apply"
+        />
       </div>
-      {(profile.annualGrossSalary ?? 0) >= 69300 && (
-        <div className="text-xs bg-warm-peach text-ink-700 rounded-lg p-2 mb-4">
-          ℹ️ Above €69,300 you can choose private health insurance (PKV) instead of public (GKV).
-          We'll guide you through that decision.
-        </div>
+
+      <FieldLabel>Country of origin (ISO-2 code, e.g. IN, BR, US)</FieldLabel>
+      <input
+        type="text"
+        maxLength={2}
+        value={profile.countryOfOrigin ?? ""}
+        onChange={(e) => update("countryOfOrigin", e.target.value.toUpperCase())}
+        placeholder="IN"
+        className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm uppercase"
+      />
+
+      <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 mt-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={profile.livedInGermanyBefore ?? false}
+          onChange={(e) => update("livedInGermanyBefore", e.target.checked)}
+          className="accent-warm-orange"
+        />
+        <span className="text-sm text-ink-700">I've lived in Germany before</span>
+      </label>
+
+      <NextButton disabled={!profile.nationality} onClick={onNext} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 3 — Reason for coming (sets employment + visa_type)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepReason({
+  reason,
+  onPick,
+  onNext,
+}: {
+  reason: ReasonForComing | undefined;
+  onPick: (r: ReasonForComing) => void;
+  onNext: () => void;
+}) {
+  return (
+    <>
+      <StepHeader
+        icon={<Briefcase size={20} />}
+        title="Why are you coming?"
+        sub="This sets your whole path. Pick the closest match — you can refine later."
+      />
+
+      <div className="space-y-1.5">
+        <Choice
+          selected={reason === "employed-blue-card"}
+          onClick={() => onPick("employed-blue-card")}
+          label="Employed · EU Blue Card"
+          hint="Skilled hire, salary above €45–50k threshold"
+        />
+        <Choice
+          selected={reason === "employed-other"}
+          onClick={() => onPick("employed-other")}
+          label="Employed · standard work permit"
+          hint="Below Blue Card threshold, or non-academic role"
+        />
+        <Choice
+          selected={reason === "freelance"}
+          onClick={() => onPick("freelance")}
+          label="Freelance / self-employed"
+          hint="Freelance visa, Finanzamt registration"
+        />
+        <Choice
+          selected={reason === "student"}
+          onClick={() => onPick("student")}
+          label="Student"
+          hint="Sperrkonto, university enrollment, student visa"
+        />
+        <Choice
+          selected={reason === "researcher"}
+          onClick={() => onPick("researcher")}
+          label="Researcher / academic"
+          hint="Research permit, often with host institution support"
+        />
+        <Choice
+          selected={reason === "family-reunion"}
+          onClick={() => onPick("family-reunion")}
+          label="Joining family / partner"
+          hint="Family reunion visa, A1 German required from abroad"
+        />
+        <Choice
+          selected={reason === "eu-citizen"}
+          onClick={() => onPick("eu-citizen")}
+          label="EU citizen — no visa needed"
+          hint="Skip visa procedures, still need Anmeldung etc."
+        />
+        <Choice
+          selected={reason === "job-seeker"}
+          onClick={() => onPick("job-seeker")}
+          label="Looking for work"
+          hint="Job-seeker visa or Chancenkarte (Opportunity Card)"
+        />
+      </div>
+
+      <NextButton disabled={!reason} onClick={onNext} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 4 — Job & money (conditional on reason)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepJobMoney({
+  profile,
+  update,
+  reason,
+  onNext,
+}: StepProps & { reason: ReasonForComing | undefined }) {
+  const showSalary =
+    reason === "employed-blue-card" ||
+    reason === "employed-other" ||
+    reason === "researcher" ||
+    reason === "family-reunion" ||
+    reason === "eu-citizen";
+
+  const showFreelance = reason === "freelance";
+  const showStudent = reason === "student";
+
+  return (
+    <>
+      <StepHeader
+        icon={<Euro size={20} />}
+        title="Your work + money"
+        sub="Determines tax class, insurance threshold, and whether the PKV decision applies to you."
+      />
+
+      {showSalary && (
+        <>
+          <FieldLabel>Annual gross salary (EUR)</FieldLabel>
+          <input
+            type="range"
+            min={20000}
+            max={200000}
+            step={1000}
+            value={profile.annualGrossSalary ?? 60000}
+            onChange={(e) => update("annualGrossSalary", parseInt(e.target.value))}
+            className="w-full mb-1 accent-warm-orange"
+          />
+          <div className="flex justify-between text-[11px] text-ink-400 mb-3">
+            <span>€20k</span>
+            <span className="font-semibold text-ink-700">
+              €{(profile.annualGrossSalary ?? 60000).toLocaleString()}
+            </span>
+            <span>€200k</span>
+          </div>
+          {(profile.annualGrossSalary ?? 0) >= 69300 && (
+            <div className="text-[11px] bg-warm-peach text-ink-700 rounded-lg p-2 mb-3 leading-snug">
+              ℹ️ Above €69,300 you can choose private health insurance (PKV)
+              instead of public (GKV). We'll guide you through that decision.
+            </div>
+          )}
+
+          <FieldLabel>Job start date</FieldLabel>
+          <input
+            type="date"
+            value={profile.startDate ?? ""}
+            onChange={(e) => update("startDate", e.target.value || null)}
+            className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm"
+          />
+
+          <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 mt-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={profile.hasSignedContract ?? false}
+              onChange={(e) => update("hasSignedContract", e.target.checked)}
+              className="accent-warm-orange"
+            />
+            <span className="text-sm text-ink-700">I've signed my employment contract</span>
+          </label>
+        </>
       )}
 
-      <label className="text-xs uppercase tracking-widest text-ink-300 font-semibold mb-2 block">
-        Marital status
-      </label>
+      {showFreelance && (
+        <>
+          <FieldLabel>Expected first-year income (EUR)</FieldLabel>
+          <input
+            type="range"
+            min={10000}
+            max={200000}
+            step={1000}
+            value={profile.annualGrossSalary ?? 50000}
+            onChange={(e) => update("annualGrossSalary", parseInt(e.target.value))}
+            className="w-full mb-1 accent-warm-orange"
+          />
+          <div className="flex justify-between text-[11px] text-ink-400 mb-3">
+            <span>€10k</span>
+            <span className="font-semibold text-ink-700">
+              €{(profile.annualGrossSalary ?? 50000).toLocaleString()}
+            </span>
+            <span>€200k</span>
+          </div>
+          <div className="text-[11px] bg-warm-peach text-ink-700 rounded-lg p-2 mb-3 leading-snug">
+            ℹ️ Below €22,000 in year 1 you can register as Kleinunternehmer
+            (small business — no VAT). We'll flag that decision.
+          </div>
+        </>
+      )}
+
+      {showStudent && (
+        <>
+          <FieldLabel>Expected start date of studies</FieldLabel>
+          <input
+            type="date"
+            value={profile.startDate ?? ""}
+            onChange={(e) => update("startDate", e.target.value || null)}
+            className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm"
+          />
+          <div className="text-[11px] bg-warm-peach text-ink-700 rounded-lg p-2 mt-3 leading-snug">
+            ℹ️ You'll need a blocked account (Sperrkonto) with €11,904
+            deposited before your visa interview.
+          </div>
+        </>
+      )}
+
+      <NextButton onClick={onNext} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 5 — Family + housing
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepFamilyHousing({ profile, update, onNext }: StepProps) {
+  return (
+    <>
+      <StepHeader
+        icon={<Heart size={20} />}
+        title="Family and first home"
+        sub="Housing situation is the single biggest determinant of whether you hit the SCHUFA deadlock."
+      />
+
+      <FieldLabel>Marital status</FieldLabel>
       <select
         value={profile.maritalStatus ?? "single"}
         onChange={(e) =>
           update("maritalStatus", e.target.value as ProfileInput["maritalStatus"])
         }
-        className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm mb-4"
+        className="w-full px-4 py-3 rounded-xl border border-cream-300 bg-white text-sm"
       >
         <option value="single">Single</option>
         <option value="married">Married</option>
@@ -409,74 +599,215 @@ function Step4({ profile, update, onNext }: StepProps) {
         <option value="divorced">Divorced</option>
       </select>
 
-      <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 cursor-pointer mb-2">
+      {(profile.maritalStatus === "married" ||
+        profile.maritalStatus === "registered-partnership") && (
+        <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 mt-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={profile.spouseAccompanying ?? false}
+            onChange={(e) => update("spouseAccompanying", e.target.checked)}
+            className="accent-warm-orange"
+          />
+          <span className="text-sm text-ink-700">My spouse is joining me</span>
+        </label>
+      )}
+
+      <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 mt-2 cursor-pointer">
         <input
           type="checkbox"
           checked={profile.hasChildren ?? false}
           onChange={(e) => update("hasChildren", e.target.checked)}
+          className="accent-warm-orange"
         />
-        <span className="text-sm">I have children</span>
+        <span className="text-sm text-ink-700">I have children coming with me</span>
       </label>
-      <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 cursor-pointer mb-2">
-        <input
-          type="checkbox"
-          checked={profile.hasIndianDrivingLicense ?? false}
-          onChange={(e) => update("hasIndianDrivingLicense", e.target.checked)}
+
+      <FieldLabel>First housing situation</FieldLabel>
+      <div className="space-y-1.5">
+        <Choice
+          selected={profile.housing === "temporary-employer"}
+          onClick={() => update("housing", "temporary-employer")}
+          label="Employer-provided temp flat"
+          hint="They'll sign your Wohnungsgeberbestätigung — best case"
         />
-        <span className="text-sm">I have an Indian driving license</span>
-      </label>
-      <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 cursor-pointer mb-2">
-        <input
-          type="checkbox"
-          checked={profile.hasUSDrivingLicense ?? false}
-          onChange={(e) => update("hasUSDrivingLicense", e.target.checked)}
+        <Choice
+          selected={profile.housing === "temporary-airbnb"}
+          onClick={() => update("housing", "temporary-airbnb")}
+          label="Hotel / Airbnb"
+          hint="Most won't sign — we'll need a workaround"
         />
-        <span className="text-sm">I have a US driving license</span>
-      </label>
-      <label className="flex items-center gap-3 p-3 rounded-xl bg-white border border-cream-300 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={profile.hasOtherNonEUDrivingLicense ?? false}
-          onChange={(e) => update("hasOtherNonEUDrivingLicense", e.target.checked)}
+        <Choice
+          selected={profile.housing === "temporary-friend"}
+          onClick={() => update("housing", "temporary-friend")}
+          label="Friend's place"
+          hint="Friend can sign if willing"
         />
-        <span className="text-sm">I have a non-EU driving license (other country)</span>
-      </label>
+        <Choice
+          selected={profile.housing === "permanent-rental"}
+          onClick={() => update("housing", "permanent-rental")}
+          label="Already have permanent rental"
+          hint="Lucky — major deadlocks avoided"
+        />
+      </div>
 
       <NextButton onClick={onNext} />
     </>
   );
 }
 
-// Step 5: Confirm + submit
-function Step5({
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 6 — Integration goals (language + stay length)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepGoals({ profile, update, onNext }: StepProps) {
+  const LEVELS = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"] as const;
+
+  return (
+    <>
+      <StepHeader
+        icon={<BookOpen size={20} />}
+        title="Language and time horizon"
+        sub="B1 German is the standard threshold for permanent residency. Knowing your starting point lets us pick the right path."
+      />
+
+      <FieldLabel>My current German level</FieldLabel>
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {LEVELS.map((l) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => update("currentLanguageLevel", l)}
+            className={`py-2 rounded-lg text-xs font-bold transition-colors ${
+              profile.currentLanguageLevel === l
+                ? "bg-warm-orange text-white"
+                : "bg-white text-ink-500 hover:bg-cream-100"
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-ink-300 leading-relaxed">
+        A0 = starting fresh. B1 = conversational. C2 = native-level.
+      </p>
+
+      <FieldLabel>My goal level</FieldLabel>
+      <div className="grid grid-cols-7 gap-1">
+        {LEVELS.map((l) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => update("goalLanguageLevel", l)}
+            className={`py-2 rounded-lg text-xs font-bold transition-colors ${
+              profile.goalLanguageLevel === l
+                ? "bg-ink-900 text-cream-100"
+                : "bg-white text-ink-500 hover:bg-cream-100"
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
+      <FieldLabel>How long are you planning to stay?</FieldLabel>
+      <div className="space-y-1.5">
+        <Choice
+          selected={profile.plannedStayLength === "short"}
+          onClick={() => update("plannedStayLength", "short")}
+          label="1–2 years"
+          hint="Assignment, exchange, gap year"
+        />
+        <Choice
+          selected={profile.plannedStayLength === "medium"}
+          onClick={() => update("plannedStayLength", "medium")}
+          label="3–5 years"
+          hint="Most Blue Card careers — residency in reach"
+        />
+        <Choice
+          selected={profile.plannedStayLength === "long"}
+          onClick={() => update("plannedStayLength", "long")}
+          label="Settling indefinitely"
+          hint="Permanent residency + naturalisation track"
+        />
+      </div>
+
+      <NextButton onClick={onNext} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 7 — Review + submit
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StepReview({
   profile,
+  reason,
   onSubmit,
   isPending,
 }: {
   profile: Partial<ProfileInput>;
+  reason: ReasonForComing | undefined;
   onSubmit: () => void;
   isPending: boolean;
 }) {
+  const reasonLabel: Record<ReasonForComing, string> = {
+    "employed-blue-card": "Blue Card employee",
+    "employed-other": "Standard work permit",
+    freelance: "Freelance / self-employed",
+    student: "Student",
+    researcher: "Researcher",
+    "family-reunion": "Family reunion",
+    "eu-citizen": "EU citizen",
+    "job-seeker": "Job-seeker",
+  };
+
   return (
     <>
       <StepHeader
+        icon={<Check size={20} />}
         title="Ready to see your path?"
-        sub="We'll generate a personalized, dependency-aware roadmap. You can update anything later."
+        sub="The engine combines all of this into a personalized, dependency-aware roadmap. You can update anything later."
       />
 
-      <div className="bg-white rounded-2xl p-5 space-y-3">
+      <div className="bg-white rounded-2xl p-4 space-y-2 text-sm">
         <Row label="Going to" value={`🇩🇪 Germany${profile.city ? ` · ${profile.city}` : ""}`} />
+        <Row label="From" value={profile.countryOfOrigin ?? "—"} />
         <Row label="Citizenship" value={profile.nationality ?? "—"} />
-        <Row label="Path" value={profile.visaType ?? "—"} />
+        <Row label="Path" value={reason ? reasonLabel[reason] : "—"} />
         {profile.arrivalDate && <Row label="Arrival" value={profile.arrivalDate} />}
-        {profile.annualGrossSalary && (
-          <Row label="Salary" value={`€${profile.annualGrossSalary.toLocaleString()}`} />
+        {profile.annualGrossSalary !== null &&
+          profile.annualGrossSalary !== undefined && (
+            <Row
+              label="Salary / income"
+              value={`€${profile.annualGrossSalary.toLocaleString()}`}
+            />
+          )}
+        {profile.maritalStatus && <Row label="Status" value={profile.maritalStatus} />}
+        {profile.hasChildren && <Row label="Kids coming" value="Yes" />}
+        {profile.currentLanguageLevel && (
+          <Row
+            label="German"
+            value={`${profile.currentLanguageLevel} → ${profile.goalLanguageLevel ?? "B1"}`}
+          />
         )}
-        <Row label="Status" value={profile.maritalStatus ?? "—"} />
+        {profile.plannedStayLength && (
+          <Row
+            label="Staying"
+            value={
+              profile.plannedStayLength === "short"
+                ? "1–2 years"
+                : profile.plannedStayLength === "medium"
+                ? "3–5 years"
+                : "Indefinitely"
+            }
+          />
+        )}
       </div>
 
       <button
         onClick={onSubmit}
+        type="button"
         disabled={isPending}
         className="w-full mt-6 py-4 rounded-2xl bg-warm-orange text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-40 hover:bg-warm-amber transition-colors"
       >
