@@ -41,6 +41,8 @@ const profileSchema = z.object({
   currentLanguageLevel: z.enum(["A0", "A1", "A2", "B1", "B2", "C1", "C2"]).optional(),
   goalLanguageLevel: z.enum(["A0", "A1", "A2", "B1", "B2", "C1", "C2"]).optional(),
   languageGoalDate: z.string().optional().or(z.literal("")),
+  institution: z.string().trim().max(160).optional().or(z.literal("")),
+  applyingViaUniAssist: z.boolean().optional(),
   confidence: z.record(z.enum(["confirmed", "assumed", "unknown"])).default({}),
 });
 
@@ -78,6 +80,8 @@ export async function saveProfile(input: ProfileInput) {
     currentLanguageLevel,
     goalLanguageLevel,
     languageGoalDate,
+    institution,
+    applyingViaUniAssist,
     ...rest
   } = data;
   // Merge new fields into extras alongside whatever's already there.
@@ -93,6 +97,8 @@ export async function saveProfile(input: ProfileInput) {
     ...(currentLanguageLevel !== undefined && { currentLanguageLevel }),
     ...(goalLanguageLevel !== undefined && { goalLanguageLevel }),
     ...(languageGoalDate && { languageGoalDate }),
+    ...(institution && { institution }),
+    ...(applyingViaUniAssist !== undefined && { applyingViaUniAssist }),
   };
 
   if (existing) {
@@ -206,6 +212,8 @@ export async function getMyPath() {
     languageGoalDate: extras.languageGoalDate as string | undefined,
     livedInGermanyBefore: extras.livedInGermanyBefore as boolean | undefined,
     plannedStayLength: extras.plannedStayLength as UserProfile["plannedStayLength"],
+    institution: extras.institution as string | undefined,
+    applyingViaUniAssist: extras.applyingViaUniAssist as boolean | undefined,
     confidence: (profileRow.confidence as UserProfile["confidence"]) ?? {},
   };
 

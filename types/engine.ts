@@ -151,6 +151,13 @@ export interface UserProfile {
   // procedures to the user's actual ambition.
   plannedStayLength?: StayHorizon;
 
+  // For students only: which university (free text) and whether
+  // they're still going through Uni-Assist (the centralized application
+  // service for international students). Lets us surface the
+  // Zulassungsbescheid prerequisite on the student path.
+  institution?: string;
+  applyingViaUniAssist?: boolean;
+
   // Per-field confidence map
   confidence: Record<string, Confidence>;
 }
