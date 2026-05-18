@@ -290,23 +290,57 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StepDestination({ profile, update, onNext }: StepProps) {
+  const countries: {
+    code: ProfileInput["targetCountry"];
+    flag: string;
+    name: string;
+    status: "live" | "soon";
+  }[] = [
+    { code: "DE", flag: "🇩🇪", name: "Germany", status: "live" },
+    { code: "NL", flag: "🇳🇱", name: "Netherlands", status: "soon" },
+    { code: "AT", flag: "🇦🇹", name: "Austria", status: "soon" },
+    { code: "CH", flag: "🇨🇭", name: "Switzerland", status: "soon" },
+  ];
+
   return (
     <>
       <StepHeader
         icon={<Flag size={20} />}
         title="Where are you headed?"
-        sub="We'll personalize everything based on the country. Right now we know Germany inside-out."
+        sub="Right now we know Germany inside-out. NL, AT and CH are next — same engine, different procedures."
       />
-      <div className="space-y-2">
-        <Choice
-          selected={profile.targetCountry === "DE"}
-          onClick={() => update("targetCountry", "DE")}
-          label="🇩🇪 Germany"
-          hint="Available now"
-        />
-        <Choice selected={false} disabled onClick={() => {}} label="🇳🇱 Netherlands · Coming soon" />
-        <Choice selected={false} disabled onClick={() => {}} label="🇦🇹 Austria · Coming soon" />
-        <Choice selected={false} disabled onClick={() => {}} label="🇨🇭 Switzerland · Coming soon" />
+      <div className="grid grid-cols-2 gap-2">
+        {countries.map((c) => {
+          const live = c.status === "live";
+          const selected = profile.targetCountry === c.code && live;
+          return (
+            <button
+              key={c.code}
+              type="button"
+              onClick={() => live && update("targetCountry", c.code)}
+              disabled={!live}
+              className={`p-4 rounded-2xl border-2 text-center transition-all ${
+                selected
+                  ? "border-warm-orange bg-warm-peach"
+                  : live
+                  ? "border-cream-300 bg-white hover:border-warm-orange"
+                  : "border-cream-300 bg-white cursor-not-allowed"
+              }`}
+            >
+              <div className="text-4xl mb-1.5">{c.flag}</div>
+              <div className={`text-sm font-semibold ${live ? "text-ink-700" : "text-ink-500"}`}>
+                {c.name}
+              </div>
+              <div
+                className={`text-[10px] uppercase tracking-wider font-semibold mt-0.5 ${
+                  live ? "text-warm-orange" : "text-ink-300"
+                }`}
+              >
+                {live ? "Available" : "Coming soon"}
+              </div>
+            </button>
+          );
+        })}
       </div>
       <NextButton disabled={!profile.targetCountry} onClick={onNext} />
     </>
@@ -392,12 +426,6 @@ function StepCitizenship({ profile, update, onNext }: StepProps) {
           onClick={() => update("nationality", "UK")}
           label="UK"
           hint="Post-Brexit: similar to non-EU but with quirks"
-        />
-        <Choice
-          selected={profile.nationality === "Turkey"}
-          onClick={() => update("nationality", "Turkey")}
-          label="Turkey"
-          hint="Special bilateral agreements apply"
         />
       </div>
 
@@ -799,19 +827,92 @@ function StepGoals({
   onNext,
 }: StepProps & { reason: ReasonForComing | undefined }) {
   const LEVELS = ["A0", "A1", "A2", "B1", "B2", "C1", "C2"] as const;
-  const isStudent = reason === "student";
-  const isEU = reason === "eu-citizen";
+
+  // Per-reason stay-horizon hint copy. Each path needs different framing
+  // because the milestones (residency, visa renewal, naturalisation) depend
+  // on the visa type and whether they have employer support.
+  const stayHints = (() => {
+    switch (reason) {
+      case "employed-blue-card":
+        return {
+          short: "Fixed-term assignment, then heading home",
+          medium: "Residency in 21 months with B1, otherwise 27 months",
+          long: "Niederlassungserlaubnis at year 5 (3 with B2), Einbürgerung at year 5+",
+        };
+      case "employed-other":
+        return {
+          short: "Short-term project, contract ending soon",
+          medium: "Standard work permit → residency at year 5",
+          long: "Residency at year 5 (B1), naturalisation soon after",
+        };
+      case "freelance":
+        return {
+          short: "Trying it out before committing",
+          medium: "Build the client base, prove sustainability for renewal",
+          long: "Niederlassungserlaubnis after 5 years of profitable freelancing",
+        };
+      case "student":
+        return {
+          short: "A semester abroad or short Master's",
+          medium: "Full Bachelor's or Master's + maybe staying after to work",
+          long: "Study then convert to work + permanent residency",
+        };
+      case "researcher":
+        return {
+          short: "Postdoc or fixed-term fellowship",
+          medium: "Multi-year project + tenure-track pivot",
+          long: "Permanent academic post + residency at year 5",
+        };
+      case "family-reunion":
+        return {
+          short: "Joining partner short-term (e.g. their assignment)",
+          medium: "Building life together — residency in 5 years",
+          long: "Permanent residency + Einbürgerung when eligible",
+        };
+      case "eu-citizen":
+        return {
+          short: "Trying Germany out, free to leave anytime",
+          medium: "Building a real life here",
+          long: "Putting down roots — possible Einbürgerung after 5–8 years",
+        };
+      case "job-seeker":
+        return {
+          short: "Just to land a job — then switch to work permit",
+          medium: "Plan to stay after finding work — residency in reach",
+          long: "Career here long-term — permanent residency the goal",
+        };
+      default:
+        return {
+          short: "Assignment, exchange, gap year",
+          medium: "Building a life here",
+          long: "Permanent residency + naturalisation track",
+        };
+    }
+  })();
+
+  const headerSub = (() => {
+    switch (reason) {
+      case "student":
+        return "Many German universities teach in English, but everyday life works much better in German. Knowing your level helps us pick the right resources.";
+      case "freelance":
+        return "Conversational German lets you handle Finanzamt, clients, and contracts without a translator. B1 is the standard residency threshold.";
+      case "family-reunion":
+        return "You already showed A1 to get the visa. B1 opens permanent residency and citizenship. Knowing your current level helps us pick what's next.";
+      case "eu-citizen":
+        return "No legal pressure on you, but B1 transforms daily life — and is needed if you ever go for German citizenship.";
+      case "job-seeker":
+        return "B1 makes you 10× more hirable for the German market. Even B2 unlocks doors closed to English-only applicants.";
+      default:
+        return "B1 German is the standard threshold for permanent residency. Knowing your starting point lets us pick the right path.";
+    }
+  })();
 
   return (
     <>
       <StepHeader
         icon={<BookOpen size={20} />}
         title="Language and time horizon"
-        sub={
-          isStudent
-            ? "Many German universities teach in English, but everyday life works much better in German. Knowing your level helps us pick the right resources."
-            : "B1 German is the standard threshold for permanent residency. Knowing your starting point lets us pick the right path."
-        }
+        sub={headerSub}
       />
 
       <FieldLabel>My current German level</FieldLabel>
@@ -859,37 +960,19 @@ function StepGoals({
           selected={profile.plannedStayLength === "short"}
           onClick={() => update("plannedStayLength", "short")}
           label="1–2 years"
-          hint={
-            isStudent
-              ? "A semester abroad or short Master's"
-              : isEU
-              ? "Trying it out, free to leave anytime"
-              : "Assignment, exchange, gap year"
-          }
+          hint={stayHints.short}
         />
         <Choice
           selected={profile.plannedStayLength === "medium"}
           onClick={() => update("plannedStayLength", "medium")}
           label="3–5 years"
-          hint={
-            isStudent
-              ? "Full Bachelor's or Master's + maybe staying after to work"
-              : isEU
-              ? "Building a real life here"
-              : "Most Blue Card careers — residency in reach"
-          }
+          hint={stayHints.medium}
         />
         <Choice
           selected={profile.plannedStayLength === "long"}
           onClick={() => update("plannedStayLength", "long")}
           label="Settling indefinitely"
-          hint={
-            isStudent
-              ? "Studying then staying for work + permanent residency"
-              : isEU
-              ? "Putting down roots — possible Einbürgerung path"
-              : "Permanent residency + naturalisation track"
-          }
+          hint={stayHints.long}
         />
       </div>
 
